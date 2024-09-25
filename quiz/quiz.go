@@ -39,42 +39,45 @@ func questions() []question {
 }
 
 // ask asks a question and returns an updated score depending on the answer.
-func ask(c chan<- score, s score, question question) score {
-	fmt.Println(question.q)
+func ask(s score, questions []question, a chan score) {
 	scanner := bufio.NewScanner(os.Stdin)
-	fmt.Print("Enter answer: ")
-	scanner.Scan()
-	text := scanner.Text()
-	if strings.Compare(text, question.a) == 0 {
-		fmt.Println("Correct!")
-		s++
-	} else {
-		fmt.Println("Incorrect :-(")
-	}
-	c <- s
-	return s
-}
 
-func timeClock(start time.Time) {
-	finished := false
-	for !finished {
-		t := time.Now()
-		elapsed := t.Sub(start)
-		if elapsed.Seconds() >= 5 {
-			finished = true
+	for _, q := range questions {
+		fmt.Println(q.q)
+		fmt.Print("Enter answer: ")
+		scanner.Scan()
+		text := scanner.Text()
+		if strings.Compare(text, q.a) == 0 {
+			fmt.Println("Correct!")
+			s++
+		} else {
+			fmt.Println("Incorrect :-(")
 		}
+		a <- s
 	}
+	close(a)
+
 }
 
 func main() {
-	start := time.Now()
-	c := make(chan score)
 	s := score(0)
+	final := score(0)
 	qs := questions()
-	for _, q := range qs {
-		go ask(c, s, q)
-		s = <-c
-		go timeClock(start)
+	a := make(chan score, 10)
+	timeout := time.After(5 * time.Second)
+	go ask(s, qs, a)
+	for {
+		select {
+		case s, ok := <-a:
+			if !ok {
+				fmt.Println("\nFinal score", final)
+				return
+			}
+			final = s
+		case <-timeout:
+			fmt.Println("\nFinal score", final)
+			return
+		}
+
 	}
-	fmt.Println("Final score", s)
 }
